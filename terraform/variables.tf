@@ -24,7 +24,9 @@ variable "node_list" {
 
 variable "vm_common" {
   default = {
-    image_url = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
-    username  = "cloudinit"
+    image_url        = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+    username         = "cloudinit"
+    public_key       = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICbFDAA+TFC77qh34llAGu80bDkt3sllBns1DCluddbl"
+    private_key_path = "./keys/id_ed25519"
   }
 }

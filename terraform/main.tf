@@ -27,6 +27,14 @@ locals {
       ip        = "192.168.2.21"
     }
   }
+  bootstrap_cmd = <<-EOF
+  runcmd:
+    - sudo apt -y install software-properties-common
+    - sudo apt-add-repository -y --update ppa:ansible/ansible
+    - sudo apt -y install ansible
+    - cd /home/${var.vm_common.username}
+    - git clone https://github.com/cons-tan-tan/home_infra.git
+  EOF
 }
 
 resource "proxmox_virtual_environment_vm" "k8s-vm" {
@@ -69,7 +77,17 @@ resource "proxmox_virtual_environment_vm" "k8s-vm" {
       domain  = data.proxmox_virtual_environment_dns.dns[each.value.node_name].domain
       servers = data.proxmox_virtual_environment_dns.dns[each.value.node_name].servers
     }
-    user_data_file_id = proxmox_virtual_environment_file.cloud-config.id
+    user_data_file_id = proxmox_virtual_environment_file.cloud-config[each.key].id
+  }
+
+  provisioner "file" {
+    source      = var.vm_common.private_key_path
+    destination = "/home/${var.vm_common.username}/.ssh/id_ed25519"
+    connection {
+      user        = var.vm_common.username
+      private_key = file(var.vm_common.private_key_path)
+      host        = each.value.ip
+    }
   }
 }
 
@@ -81,12 +99,13 @@ resource "proxmox_virtual_environment_download_file" "ubuntu-cloud-image" {
 }
 
 resource "proxmox_virtual_environment_file" "cloud-config" {
+  for_each     = local.vm_list
   content_type = "snippets"
   node_name    = var.node_list.pve01.name
   datastore_id = var.node_list.pve01.datastore_id
 
   source_raw {
-    file_name = "cloud-config.yaml"
+    file_name = "cloud-config-${each.key}.yaml"
     data      = <<-EOF
     #cloud-config
     users:
@@ -94,11 +113,14 @@ resource "proxmox_virtual_environment_file" "cloud-config" {
         groups:
           - sudo
         ssh_authorized_keys:
+          - ${var.vm_common.public_key}
           - ${var.proxmox.admin.key}
         sudo: ALL=(ALL) NOPASSWD:ALL
         shell: /bin/bash
+    package_upgrade: true
     packages:
       - neofetch
+    ${each.key == "k8s-cp" ? local.bootstrap_cmd : ""}
     EOF
   }
 }
